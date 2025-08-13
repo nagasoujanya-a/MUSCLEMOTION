@@ -18,7 +18,7 @@ macro "MUSCLEMOTION Action Tool - C1422444T0c10MTac10M;" {
 	var drawPeaks=true;					//if transients are analyzed, the peaks are drawn
 
 	//DEFAULT VALUES - you might want to change this to have your custom defaults selected once you select 'Yes, but keep it simple'.
-	var default_recordedFramerate = 100;					//frames per second
+	var default_recordedFramerate = 26;					//frames per second
 	var default_speedWindow = 2;							//frames; see UserManual
 	var default_MPstartRange = 1;							//frame number
 	var default_MPendRange = -1;							//frame number; -1 is infinite
@@ -34,6 +34,7 @@ macro "MUSCLEMOTION Action Tool - C1422444T0c10MTac10M;" {
 	var default_binaryFormatPercentages = "100010001";		// binary format, order is 10-20-...-80-90
 	var default_tiffImSequence = "No";						//"Yes" or "No"
 	var default_guassianBlur10 = "No";						//"Yes" or "No"
+            var default_batchAnalysisVideo = "No";                                                    //"Yes" or "No"
 
 	//DO NOT CHANGE
 	var simpleAnswers = newArray("Yes", "No");
@@ -65,6 +66,8 @@ macro "MUSCLEMOTION Action Tool - C1422444T0c10MTac10M;" {
 	var binaryFormatPercentages = readSettingValue("c1.binaryFormatPercentages", default_binaryFormatPercentages);
 	var tiffImSequence = readSettingValue("c1.tiffImSequence", default_tiffImSequence);
 	var guassianBlur10 = readSettingValue("c1.guassianBlur10", default_guassianBlur10);
+            var batchAnalysisVideo = readSettingValue("c1.batchAnalysisVideo", default_batchAnalysisVideo);
+	
 	
 	//get array from string save format
 	countOnes=0;
@@ -90,7 +93,8 @@ macro "MUSCLEMOTION Action Tool - C1422444T0c10MTac10M;" {
 	Dialog.create("Analysis parameter wizard");
 	Dialog.addRadioButtonGroup(" A. Do you want to analyze a directory containing multiple TIFFs or subdirectories (batch)?\n", simpleAnswers, 0, 2, batchAnalysis);
 	Dialog.addRadioButtonGroup(" B. Do you want to analyze a TIFF image sequence instead of a stack?\n", simpleAnswers, 0, 2, tiffImSequence);
-	Dialog.addRadioButtonGroup(" C. Do you want to add a Gaussian blur to cancel out repetitive patterns?\n", simpleAnswers, 0, 2, guassianBlur10);
+            Dialog.addRadioButtonGroup(" C. Do you want to analyze a directory contatining multiple .avi videos \n", simpleAnswers, 0,2, batchAnalysisVideo);
+	Dialog.addRadioButtonGroup(" D. Do you want to add a Gaussian blur to cancel out repetitive patterns?\n", simpleAnswers, 0, 2, guassianBlur10);
 	Dialog.addMessage("D. What is the frame rate of your recording(s)?");
 	Dialog.addNumber("   ", recordedFramerate, 0, 5, "frames/second");
 	Dialog.addMessage("E. What speedWindow would you like to use?");
@@ -106,6 +110,7 @@ macro "MUSCLEMOTION Action Tool - C1422444T0c10MTac10M;" {
 	//grab data
 	batchAnalysis = Dialog.getRadioButton();
 	tiffImSequence = Dialog.getRadioButton();
+            batchAnalysisVideo = Dialog.getRadioButton();
 	guassianBlur10 = Dialog.getRadioButton();
 	recordedFramerate = Dialog.getNumber();
 	speedWindow = Dialog.getNumber();
@@ -116,6 +121,7 @@ macro "MUSCLEMOTION Action Tool - C1422444T0c10MTac10M;" {
 	//write data from dialog 1
 	writeSettingOption("c1.batchAnalysis", batchAnalysis);
 	writeSettingOption("c1.tiffImSequence", tiffImSequence);
+            writeSettingOption("c1.batchAnalysisVideo", batchAnalysisVideo);
 	writeSettingOption("c1.guassianBlur10", guassianBlur10);
 	writeSettingValue("c1.recordedFramerate", recordedFramerate, 0);
 	writeSettingValue("c1.speedWindow", speedWindow, 0);
@@ -133,6 +139,13 @@ macro "MUSCLEMOTION Action Tool - C1422444T0c10MTac10M;" {
 	}
 	else{
 		batchDirLoad=false;
+	}
+
+            if(batchAnalysisVideo=="Yes"){
+		batchDirLoadVideo=true;
+	}
+	else{
+		batchDirLoadVideo=false;
 	}
 	
 	if(SNRimprovement=="Yes & show me advanced options"){
@@ -350,6 +363,14 @@ macro "MUSCLEMOTION Action Tool - C1422444T0c10MTac10M;" {
 		
 		
 	}
+
+           else if(batchDirLoadVideo==true){
+		startDir = getDirectory("Choose a directory to analyze");
+		fileList3=getFilesInDir(startDir);
+                        Array.print(fileList3);
+		if(fileList3[0]==0){exit("No images found");}
+		numberOfFiles=fileList3.length;
+           }
 	//single file mode
 	else{
 		path = File.openDialog("Choose a file to analyze");
@@ -410,17 +431,29 @@ macro "MUSCLEMOTION Action Tool - C1422444T0c10MTac10M;" {
 		}
 	  	
 		//specify path if batchDirLoad is turned on
-		if(batchDirLoad==true){
+		else if(batchDirLoad==true){
 			path=fileList[fileCounter];
 		}
-		fileDir=File.getParent(path);
+		//fileDir=File.getParent(path);
 
+                       print("batchDirLoadVideo: "+batchDirLoadVideo);
+		 if(batchDirLoadVideo==true){
+			print("BatchDirVideo path="+fileList3[fileCounter]);
+		}
+	  	
+		//specify path if batchDirLoadVideo is turned on
+		if(batchDirLoadVideo==true){
+			path=fileList3[fileCounter];
+		}
+		fileDir=File.getParent(path);
+                        
 		//check what kind of file we are going to analyze and open it
 		var LoadingAvi=false;
 		var LoadingImageSequence=false;
 		if(endsWith(path, "avi")){
 			LoadingAvi=true;
-			run("AVI...", "select=["+path+"] use");
+                                    fullPath = startDir+File.separator+path;
+                                    run("AVI...", "select=["+fullPath+"] use");
 		}
 		else if(endsWith(path, "png") || tiffImSequence=="Yes"){
 			LoadingImageSequence=getImageSequence(path);
@@ -433,6 +466,12 @@ macro "MUSCLEMOTION Action Tool - C1422444T0c10MTac10M;" {
 		print("----------------- Evaluating file:"+File.nameWithoutExtension+" -----------------");
 		showStatus("Analyzing stack...");
 		Stack.getDimensions(width, height, channels, slices, frames);
+                        print("Width: " + width);
+                        print("Height: " + height);
+                        print("Channels: " + channels);
+                        print("Slices: " + slices);
+                        print("Frames: " + frames);
+                        
 
 		if(frames>slices){
 			slices=frames;
@@ -509,6 +548,7 @@ macro "MUSCLEMOTION Action Tool - C1422444T0c10MTac10M;" {
 	
 		resultFile=getFileName("Overview-results");
 		logFile=getFileName("Log_file");
+                        resultFileCSV = getFileNameCSV("Overview-results");
 		
 
 		
@@ -550,6 +590,7 @@ macro "MUSCLEMOTION Action Tool - C1422444T0c10MTac10M;" {
 		print("Elapsed time (ms): "+(getTime()-startTime));
 		print("----------------- Evaluation finished -----------------");
 		saveAs("Results", resultFile);
+                        saveAs("Results", resultFileCSV);
 		selectWindow("Log");
 	    run("Text...", "save=["+logFile+"]");
 	    setBatchMode(false);
@@ -624,7 +665,7 @@ function openVirtualStack(VirtualStackName, deleteReferenceFrame){
 			run("Image Sequence...", "open=["+path+"] sort use");
 	}
 	else if(LoadingAvi){
-		run("AVI...", "select=["+path+"] use");
+		run("AVI...", "select=["+fullPath+"] use");
 	}
 	else{
 		run("TIFF Virtual Stack...", "open=["+path+"]");
@@ -795,7 +836,7 @@ function customPlotZaxis(parameter, yArrayMean) {
 		setBatchMode(false);
 		setBatchMode(true);
 	}
-	Plot.makeHighResolution(parameter+"-profile",4.0);
+            Plot.makeHighResolution(parameter+"-profile",4.0);
 	saveAs("Jpeg", savePath+File.separator+parameter);
 	if(hideIntermediateResults==true){
 		setBatchMode(false);
@@ -826,6 +867,16 @@ function getFileName(parameter) {
 	}
 	return fileName;
 }
+
+function getFileNameCSV(parameter) {
+	//check if file exists and else add/change version number
+	version=1;
+	fileName=savePath+File.separator+parameter+".csv";
+	while (File.exists(fileName)){
+		fileName=savePath+File.separator+parameter+version+".csv";
+		version=version+1;
+	}
+	return fileName;
 
 function writeFile(filename) {
 	//save plot values
